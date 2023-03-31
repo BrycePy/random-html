@@ -15,11 +15,13 @@
 
 
   <script>
-    const canvas = document.querySelector("canvas");
-    const img = document.querySelector("img");
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    process();
+    document.getElementById("imsource").addEventListener("load", ()=>{
+      const canvas = document.querySelector("canvas");
+      const img = document.querySelector("img");
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      process();
+    });
     
     document.getElementById("inp").onchange = function (e) {
       var img = new Image();
@@ -49,7 +51,7 @@
       var a = document.createElement("a");
       a.text = "Download .barry"
       a.href = url;
-      a.download = "paletteIndexBuffer.bin";
+      a.download = "paletteIndexBuffer.barry";
       a.classList.add("download-btn");
       document.body.appendChild(a);
     }
