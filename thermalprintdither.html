@@ -128,7 +128,11 @@
         const r = data[i];
         const g = data[i + 1];
         const b = data[i + 2];
-        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        gray = 255 - gray;
+        gray = Math.floor(gray * 0.9);
+        gray = 255 - gray;
+
         data[i] = data[i + 1] = data[i + 2] = gray;
       }
       ctx.putImageData(imgData, 0, 0);
