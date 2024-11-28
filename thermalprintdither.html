@@ -12,6 +12,8 @@
     <input type="file" id="inp" style="display: none;"/>
     <input type="button" value="Browse..." onclick="document.getElementById('inp').click();" />
     <input type="button" value="Export PNG" onclick="exportPNG();" />
+    <input type="button" value="PRNT" onclick="printPRNT();" />
+    <progress id="progress" value="0" max="100"></progress>
   </body>
 
   <script>
@@ -158,11 +160,129 @@
 
       const canvas = document.querySelector("canvas");
       convertToGrayscale(canvas);
-      resizeCanvas(canvas, 400, 600);
+      resizeCanvas(canvas, 788, 1182);
       const buff = applyPaletteToCanvas(palette, canvas);
-      exportPaletteIndexBuffer(buff);
+      // exportPaletteIndexBuffer(buff);
       console.log(buff);
       console.log("done");
     }
+
+
+    let printCharacteristic;
+    async function connect() {
+      let success = false;
+      if (printCharacteristic == null) {
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+        filters: [
+          {
+          services: ["000018f0-0000-1000-8000-00805f9b34fb"],
+          },
+        ],
+        });
+        console.log("> Found " + device.name);
+        console.log("Connecting to GATT Server...");
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService("000018f0-0000-1000-8000-00805f9b34fb");
+        printCharacteristic = await service.getCharacteristic("00002af1-0000-1000-8000-00805f9b34fb");
+        success = true;
+      } catch (error) {
+        handleError(error);
+      }
+      } else {
+      success = true;
+      }
+      console.log("Connected: " + success);
+    }
+
+    async function send(cmds){
+      await connect();
+      console.log(printCharacteristic);
+      if (printCharacteristic != null) {
+        console.log("Sending data..." + cmds);
+
+        let sendBuffer = new Uint8Array();
+
+        for (let cmd of cmds) {
+          if (typeof cmd === "string") {
+            sendBuffer = new Uint8Array([...sendBuffer, ...new TextEncoder().encode(cmd)]);
+          }else{
+            sendBuffer = new Uint8Array([...sendBuffer, ...cmd]);
+          }
+        }
+
+        console.log(sendBuffer);
+
+        let originalLength = sendBuffer.length;
+        // await printCharacteristic.writeValue();
+        while (sendBuffer.length > 0) {
+          const chunk = sendBuffer.slice(0, 512);
+          console.log(chunk, typeof chunk);
+          await printCharacteristic.writeValue(chunk);
+          sendBuffer = sendBuffer.slice(512);
+          
+          let progress = Math.floor((originalLength - sendBuffer.length) / originalLength * 100);
+
+          document.getElementById("progress").value = progress;
+
+          console.log(progress + "%");
+        }
+      }
+    }
+
+    function canvasToBuffer(canvas) {
+      const ctx = canvas.getContext("2d");
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const width = imgData.width;
+      const height = imgData.height;
+      const channels = imgData.data.length / (width * height);
+      const xBinSize = 8;
+      const xBinCount = Math.ceil(width / xBinSize);
+
+      let buffer = [];
+      for(let y = 0; y < height; y++) {
+        let line = [];
+        for(let xBin = 0; xBin < xBinCount; xBin++) {
+          let byte = 0;
+          let mask = 128;
+          for(let x = 0; x < xBinSize; x++) {
+            const i = (y * width + xBin * xBinSize + x) * channels;
+            const gray = imgData.data[i];
+            if (gray > 128) {
+              byte = byte | mask;
+            }
+            mask = mask >> 1;
+          }
+          line.push(byte);
+        }
+        buffer.push(line);
+      }
+
+      console.log(imgData);
+      console.log(width, height, channels, xBinSize, xBinCount, buffer.flat());
+      return buffer;
+    }
+
+    async function printPRNT() {
+      const canvas = document.getElementById("imbuffer");
+      let imageBuffer = canvasToBuffer(canvas);
+      let xBytes = imageBuffer[0].length;
+      let yDots = imageBuffer.length;
+
+      // await connect();
+      let cmds = [
+        "SIZE 100 mm,150 mm\r\n",
+        "CLS\r\n",
+        `BITMAP 0,0,${xBytes},${yDots},0,`,
+        imageBuffer.flat(),
+        "PRINT 1\r\n",
+        "END\r\n"
+      ];
+      console.log(cmds);
+
+      await send(cmds);
+
+    }
+
   </script>
 </html>
